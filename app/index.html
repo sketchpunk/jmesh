@@ -1,0 +1,247 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title></title></head><body>
+<script type="module">
+
+//#region IMPORTS
+import Starter, { THREE }       from './threejs/_lib/Starter.js';
+
+import BMesh    from '../src/bmesh/BMesh';
+import { bmesh_disk_edge_next, bmesh_disk_edge_prev }   from '../src/bmesh/core/bmesh_disk_edge';
+import { BM_face_create_verts, BM_face_create, }        from '../src/bmesh/core/BM_face';
+//#endregion
+
+//#region MAIN
+let App;
+let mPnt, mLn;
+let gCaster = new THREE.Raycaster();
+
+window.addEventListener( "load", async _=>{
+    App = new Starter( { webgl2:true, grid:true } );
+    App.setCamera( 0, 20, 6, [0,0.8,0] ).render();
+
+
+    const bm = new BMesh();
+    let a   = bm.newVert( [-1,1,0] );
+    let b   = bm.newVert( [-1,-1,0] );
+    let c   = bm.newVert( [1,-1,0] );
+    let d   = bm.newVert( [1,1,0] );
+    let e   = bm.newVert( [2,1,0] );
+
+    //let e0  = bm.newEdge( a, b );
+    //let e1  = bm.newEdge( b, c );
+    //let e2  = bm.newEdge( c, d );
+    //let e3  = bm.newEdge( d, a );
+
+    //BM_face_create( bm, [a,b,c,d], [e0,e1,e2,e3], 4 );
+    //BM_face_create_verts( bm, [a,b,c,d], 4 );
+    let f;
+    f = bm.newFace( [a,b,c,d] );
+    f = bm.newFace( [e,d,c] );
+    
+    
+    genLines( bm );
+    genPoints( bm );
+
+    // Get All Verts of a Face
+    let init_l = bm.loops[ f.l_first ];
+    let iter_l = init_l;
+    do{
+        console.log( iter_l.v, bm.vertices[ iter_l.v ].co );
+        iter_l = bm.loops[ iter_l.next ];
+    } while( iter_l !== init_l );
+
+    document.addEventListener( 'pointerdown', onPointerDown );
+});
+
+function genPoints( bm ){
+    let fVerts = new Float32Array( bm.totvert * 3 );
+    for( let v of bm.vertices ){
+        let i = v.idx * 3;
+        fVerts[ i++ ] = v.co[ 0 ];
+        fVerts[ i++ ] = v.co[ 1 ];
+        fVerts[ i++ ] = v.co[ 2 ]; 
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute( 'position', new THREE.Float32BufferAttribute( fVerts, 3 ) );
+
+    const mat   = new THREE.PointsMaterial( { color: 0xffffff } );
+    mat.size = 6;
+    mat.sizeAttenuation = false;
+
+    const mesh  = new THREE.Points( geo, mat );
+    mPnt = mesh;
+    App.add( mesh );
+    return mesh;
+}
+
+function genLines( bm ){
+    let fVerts  = new Float32Array( bm.totedge * 2 * 3 );
+    let i       = 0;
+    let v1;
+    let v2;
+    let ii = 0;
+    for( let e of bm.edges ){
+        v1  = bm.vertices[ e.v1 ];
+        v2  = bm.vertices[ e.v2 ];
+
+        fVerts[ i+0 ] = v1.co[ 0 ];
+        fVerts[ i+1 ] = v1.co[ 1 ];
+        fVerts[ i+2 ] = v1.co[ 2 ];
+        fVerts[ i+3 ] = v2.co[ 0 ];
+        fVerts[ i+4 ] = v2.co[ 1 ];
+        fVerts[ i+5 ] = v2.co[ 2 ];
+
+        i += 6;
+
+        console.log( 'edge', ii++, v1.co, v2.co );
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute( 'position', new THREE.Float32BufferAttribute( fVerts, 3 ) );
+
+    const mat   = new THREE.LineBasicMaterial( { color: 0x888888, linewidth: 1 } );
+    const mesh  = new THREE.LineSegments( geo, mat );
+
+    mLn = mesh;
+    App.add( mesh );
+}
+
+
+function onPointerDown( e ){
+    let pos = new THREE.Vector2();
+    pos.x = ( e.clientX / window.innerWidth ) * 2 - 1;
+	pos.y = -( e.clientY / window.innerHeight ) * 2 + 1;
+
+    gCaster.setFromCamera( pos, App.camera );
+
+    //let hitPnt  = gCaster.intersectObject( mPnt );
+    let hitLn   = segmentRaycast( mLn, gCaster ); //gCaster.intersectObject( mLn );
+
+    //console.log( hitPnt );
+    console.log( hitLn );
+}
+
+// https://github.com/mrdoob/three.js/blob/master/src/objects/Line.js#L83
+// Original Code doesn't give the right distance to determine which edge
+// was the closest to the ray. 
+function segmentRaycast( seg, raycaster, intersects=[] ) {
+    const _sphere           = new THREE.Sphere();
+    const _inverseMatrix    = new THREE.Matrix4();
+    const _ray              = new THREE.Ray();
+
+const geometry = seg.geometry;
+const matrixWorld = seg.matrixWorld;
+const threshold = raycaster.params.Line.threshold;
+const drawRange = geometry.drawRange;
+
+// Checking boundingSphere distance to ray
+
+if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
+
+_sphere.copy( geometry.boundingSphere );
+_sphere.applyMatrix4( matrixWorld );
+_sphere.radius += threshold;
+
+if ( raycaster.ray.intersectsSphere( _sphere ) === false ) return;
+
+//
+
+_inverseMatrix.copy( matrixWorld ).invert();
+_ray.copy( raycaster.ray ).applyMatrix4( _inverseMatrix );
+
+const localThreshold = threshold / ( ( seg.scale.x + seg.scale.y + seg.scale.z ) / 3 );
+const localThresholdSq = localThreshold * localThreshold;
+
+const vStart = new THREE.Vector3();
+const vEnd = new THREE.Vector3();
+const interSegment = new THREE.Vector3();
+const interRay = new THREE.Vector3();
+const step = seg.isLineSegments ? 2 : 1;
+
+if ( geometry.isBufferGeometry ) {
+    const index = geometry.index;
+	    const attributes = geometry.attributes;
+			const positionAttribute = attributes.position;
+
+        const start = Math.max( 0, drawRange.start );
+        const end = Math.min( positionAttribute.count, ( drawRange.start + drawRange.count ) );
+
+        for ( let i = start, l = end - 1; i < l; i += step ) {
+
+            vStart.fromBufferAttribute( positionAttribute, i );
+            vEnd.fromBufferAttribute( positionAttribute, i + 1 );
+
+            const distSq = _ray.distanceSqToSegment( vStart, vEnd, interRay, interSegment );
+
+            if ( distSq > localThresholdSq ) continue;
+            console.log( i/step, distSq, vStart, vEnd );
+
+            interRay.applyMatrix4( seg.matrixWorld ); //Move back to world space for distance calculation
+
+            const distance = raycaster.ray.origin.distanceTo( interRay );
+
+            if ( distance < raycaster.near || distance > raycaster.far ) continue;
+
+            intersects.push( {
+
+                distance: distSq,
+                // What do we want? intersection point on the ray or on the segment??
+                // point: raycaster.ray.at( distance ),
+                point: interSegment.clone().applyMatrix4( seg.matrixWorld ),
+                index: i/step,
+                face: null,
+                faceIndex: null,
+                object: this
+
+            } );
+
+        }
+
+    }
+
+    return intersects;
+}
+
+/*
+//https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_points.html
+
+				const positions = new Float32Array( amount * 3 );
+				const colors = new Float32Array( amount * 3 );
+				const sizes = new Float32Array( amount );
+
+	const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+    geometry.setAttribute( 'customColor', new THREE.BufferAttribute( colors, 3 ) );
+    geometry.setAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+
+    sphere = new THREE.Points( geometry, material );
+
+
+
+for ( let i = 0; i < 10000; i ++ ) {
+
+	const x = THREE.MathUtils.randFloatSpread( 2000 );
+	const y = THREE.MathUtils.randFloatSpread( 2000 );
+	const z = THREE.MathUtils.randFloatSpread( 2000 );
+
+	vertices.push( x, y, z );
+
+}
+
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
+
+const material = new THREE.PointsMaterial( { color: 0x888888 } );
+
+const points = new THREE.Points( geometry, material );
+
+
+*/
+
+
+//#endregion
+
+</script>
+</body></html>
