@@ -16,9 +16,10 @@ typedef struct BMVert {
 */
 
 class BVert{
-    idx : number    = -1;
-    co  : number[]  = [0,0,0];
-    e   : number    = -1;
+    recycled        = false;
+    idx : number    = -1;       // Vertex Index
+    co  : number[]  = [0,0,0];  // Vertex Coordinate
+    e   : number    = -1;       // Edge Index
 
     constructor( co ?: number[] ){
         if( co ) this.setCo( co );
@@ -28,6 +29,14 @@ class BVert{
         this.co[0] = co[0];
         this.co[1] = co[1];
         this.co[2] = co[2];
+    }
+
+    reset(){
+        this.recycled = true;
+        this.e      = -1;
+        this.co[0]  = 0;
+        this.co[1]  = 0;
+        this.co[2]  = 0;
     }
 }
 

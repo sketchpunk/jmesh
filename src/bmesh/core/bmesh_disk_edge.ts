@@ -1,7 +1,9 @@
-import { BEdge, BMDiskLink }    from '../BEdge';
-import BMesh                    from '../BMesh';
-import BVert                    from '../BVert';
-import { BM_vert_in_edge }      from './BM_vert';
+//#region IMPORTS
+import type { BEdge, BMDiskLink }   from '../BEdge';
+import type BMesh                   from '../BMesh';
+import type BVert                   from '../BVert';
+import { BM_vert_in_edge }          from './BM_vert';
+//#endregion
 
 
 function bmesh_disk_edge_next( bm:BMesh, e: BEdge, v: BVert ): BEdge | null{

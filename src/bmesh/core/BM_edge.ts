@@ -4,7 +4,10 @@ import type BVert from '../BVert';
 import { BEdge }                    from "../BEdge";
 import { BM_vert_in_edge }          from './BM_vert';
 import { bmesh_disk_edge_append, 
-         bmesh_disk_edge_next }     from './bmesh_disk_edge';
+         bmesh_disk_edge_next, 
+         bmesh_disk_edge_remove}     from './bmesh_disk_edge';
+import BLoop from '../BLoop';
+import { BM_face_kill } from './BM_face';
 
 
 // https://github.com/dfelinto/blender/blob/master/source/blender/bmesh/intern/bmesh_core.c#L147
@@ -87,6 +90,36 @@ function BM_edges_from_verts_ensure( bm: BMesh, edge_arr: BEdge[], vert_arr: BVe
 }
 
 
+function BM_edge_kill( bm: BMesh, e: BEdge ): void{
+    let l: BLoop;
+    while( e.l != -1 ){
+        l = bm.loops[ e.l ];
+        BM_face_kill( bm, bm.faces[ l.f ] );
+    }
+
+    bmesh_disk_edge_remove( bm, e, bm.vertices[ e.v1 ] );
+    bmesh_disk_edge_remove( bm, e, bm.vertices[ e.v2 ] );
+
+    bm_kill_only_edge( bm, e );
+  
+    /*
+    do{
+        console.log( 'loop', l );
+        
+        if( l.radial_next == -1 ){ console.log( 'loop has -1 next' ); break; }
+        l = bm.loops[ l.radial_next ];
+
+    } while( l.idx != iStart );
+    */
+}
+
+function bm_kill_only_edge( bm: BMesh, e: BEdge ): void{
+    bm.totedge--;
+    e.reset();
+    bm.recycled_e.push( e.idx );
+}
+
+
 /**
  * kills \a e and all faces that use it.
 
@@ -108,4 +141,6 @@ export {
     BM_edge_exists,
     BM_edges_from_verts,
     BM_edges_from_verts_ensure,
+    BM_edge_kill,
+    bm_kill_only_edge,
 };

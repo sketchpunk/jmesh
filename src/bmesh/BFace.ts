@@ -20,10 +20,20 @@ short mat_nr;  material index
 */
 
 class BFace{
+    recycled            = false;
     idx     : number    = -1;
     l_first : number    = -1;
-    len     : number    = 0;  // Length of Circular Linked List
-    no      : number[]  = [0,0,0]; // face normal
+    len     : number    = 0;        // Length of Circular Linked List
+    no      : number[]  = [0,0,0];  // face normal
+
+    reset(){
+        this.recycled    = true;
+        this.l_first     = -1;
+        this.len         = 0;
+        this.no[ 0 ]     = 0;
+        this.no[ 1 ]     = 0;
+        this.no[ 2 ]     = 0;
+    }
 }
 
 export default BFace;

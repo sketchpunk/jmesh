@@ -30,12 +30,15 @@ typedef struct BMEdge {
  } BMEdge;
 */
 
+import type BVert from "./BVert";
+
 class BMDiskLink {
     next : number = -1;
     prev : number = -1;
 }
 
 class BEdge{
+    recycled     = false;
     idx : number = -1;
     v1  : number = -1;   // Vertex 1 Index
     v2  : number = -1;   // Vertex 2 INdex
@@ -44,6 +47,23 @@ class BEdge{
     // Disk Cycle Pointers - A circle of edges around a vertex
     v1_disk_link = new BMDiskLink();
     v2_disk_link = new BMDiskLink();
+
+    getDiskLink( v: BVert ): BMDiskLink | null{
+        if( v.idx == this.v1 ) return this.v1_disk_link;
+        if( v.idx == this.v2 ) return this.v2_disk_link;
+        return null;
+    }
+
+    reset(){
+        this.recycled           = true;
+        this.l                  = -1;
+        this.v1                 = -1;
+        this.v2                 = -1;
+        this.v1_disk_link.next  = -1;
+        this.v1_disk_link.prev  = -1;
+        this.v2_disk_link.next  = -1;
+        this.v2_disk_link.prev  = -1;
+    }
 }
 
 export { BEdge, BMDiskLink };

@@ -3,3 +3,32 @@
 // https://github.com/eliemichel/BMeshUnity/blob/master/Library/BMesh.cs
 https://fossies.org/linux/blender/source/blender/python/bmesh/bmesh_py_api.c
 https://cpp.hotexamples.com/examples/-/-/BM_vert_create/cpp-bm_vert_create-function-examples.html
+
+
+
+    // Get All Verts of a Face
+    let init_l = bm.loops[ f.l_first ];
+    let iter_l = init_l;
+    do{
+        console.log( iter_l.v, bm.vertices[ iter_l.v ].co );
+        iter_l = bm.loops[ iter_l.next ];
+    } while( iter_l !== init_l );
+
+        /*// Loop all edges of a vert?
+        do{
+            //-------------------------------------------
+            console.log( "Edge", e );
+            
+            BM_edge_kill( bm, e );
+
+            //-------------------------------------------
+            // Go to Next Edge
+            lnk = e.getDiskLink( v );
+            if( !lnk || lnk.next == -1 ){
+                console.log( 'Edge does not contain Vert Disk List for some reason' );
+                break; 
+            }else{
+                e = bm.edges[ lnk.next ];
+            }  
+        } while( e.idx != iStart );
+        */

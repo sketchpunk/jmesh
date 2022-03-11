@@ -4,21 +4,29 @@
 <script type="module">
 
 //#region IMPORTS
-import Starter, { THREE }       from './threejs/_lib/Starter.js';
+import Starter, { THREE }   from './threejs/_lib/Starter.js';
+import PointsMesh           from './threejs/_lib/PointsMesh.js';
+import DynPointMesh         from './threejs/_lib/DynPointMesh.js';
+
 
 import BMesh    from '../src/bmesh/BMesh';
 import { bmesh_disk_edge_next, bmesh_disk_edge_prev }   from '../src/bmesh/core/bmesh_disk_edge';
 import { BM_face_create_verts, BM_face_create, }        from '../src/bmesh/core/BM_face';
+import { BM_vert_kill, }                                 from '../src/bmesh/core/BM_vert';
 //#endregion
 
 //#region MAIN
-let App;
+let App, Debug = {};
 let mPnt, mLn;
 let gCaster = new THREE.Raycaster();
 
 window.addEventListener( "load", async _=>{
     App = new Starter( { webgl2:true, grid:true } );
     App.setCamera( 0, 20, 6, [0,0.8,0] ).render();
+
+    Debug.pnt = new PointsMesh();
+    App.add( Debug.pnt.mesh );
+
 
 
     const bm = new BMesh();
@@ -38,11 +46,17 @@ window.addEventListener( "load", async _=>{
     let f;
     f = bm.newFace( [a,b,c,d] );
     f = bm.newFace( [e,d,c] );
-    
-    
-    genLines( bm );
-    genPoints( bm );
 
+    //BM_vert_kill( bm, bm.vertices[ 0 ] );
+    
+    //console.log( bm.newVert( [0,1,0] ) );
+
+    genLines( bm );
+    genPoints2( bm );
+
+    console.log( bm );
+
+    /*
     // Get All Verts of a Face
     let init_l = bm.loops[ f.l_first ];
     let iter_l = init_l;
@@ -50,17 +64,21 @@ window.addEventListener( "load", async _=>{
         console.log( iter_l.v, bm.vertices[ iter_l.v ].co );
         iter_l = bm.loops[ iter_l.next ];
     } while( iter_l !== init_l );
+    */
 
     document.addEventListener( 'pointerdown', onPointerDown );
 });
 
 function genPoints( bm ){
     let fVerts = new Float32Array( bm.totvert * 3 );
+    let i, idx = 0;
     for( let v of bm.vertices ){
-        let i = v.idx * 3;
+        if( v.recycled ) continue;
+        i = idx * 3;
         fVerts[ i++ ] = v.co[ 0 ];
         fVerts[ i++ ] = v.co[ 1 ];
         fVerts[ i++ ] = v.co[ 2 ]; 
+        idx++;
     }
 
     const geo = new THREE.BufferGeometry();
@@ -76,6 +94,36 @@ function genPoints( bm ){
     return mesh;
 }
 
+function genPoints2( bm ){
+    let mesh =  new DynPointMesh( bm.totvert );
+    for( let v of bm.vertices ){
+        if( v.recycled ) continue;
+        mesh.add( v.co );
+    }
+
+    mPnt = mesh;
+    App.add( mesh );
+
+
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute( 'position', mesh.geometry.attributes.position );
+
+    const mat   = new THREE.PointsMaterial( { color: 0xffffff } );
+    mat.size = 6;
+    mat.sizeAttenuation = false;
+
+    const meshx  = new THREE.Points( geo, mat );
+    meshx.position.y = 4;
+    App.add( meshx );
+
+
+    return mesh;
+}
+
+
+
+
 function genLines( bm ){
     let fVerts  = new Float32Array( bm.totedge * 2 * 3 );
     let i       = 0;
@@ -83,8 +131,12 @@ function genLines( bm ){
     let v2;
     let ii = 0;
     for( let e of bm.edges ){
+        if( e.recycled ) continue;
+
         v1  = bm.vertices[ e.v1 ];
         v2  = bm.vertices[ e.v2 ];
+
+        //if( !v1 || !v2 ) continue;
 
         fVerts[ i+0 ] = v1.co[ 0 ];
         fVerts[ i+1 ] = v1.co[ 1 ];
@@ -95,7 +147,7 @@ function genLines( bm ){
 
         i += 6;
 
-        console.log( 'edge', ii++, v1.co, v2.co );
+        //console.log( 'edge', ii++, v1.co, v2.co );
     }
 
     const geo = new THREE.BufferGeometry();
@@ -114,18 +166,43 @@ function onPointerDown( e ){
     pos.x = ( e.clientX / window.innerWidth ) * 2 - 1;
 	pos.y = -( e.clientY / window.innerHeight ) * 2 + 1;
 
+    mPnt.geometry.attributes.position.array[ 0 ] = -4;
+    mPnt.geometry.attributes.position.needsUpdate = true;
+    mPnt.geometry.computeBoundingSphere(); // Meed to compute before it picks up the new position for casting
+    
     gCaster.setFromCamera( pos, App.camera );
 
-    //let hitPnt  = gCaster.intersectObject( mPnt );
-    let hitLn   = segmentRaycast( mLn, gCaster ); //gCaster.intersectObject( mLn );
+    let hitPnt  = gCaster.intersectObject( mPnt );
+    //let hitPnt  = []
+    //pointRaycast( mPnt, gCaster, hitPnt );
+    //let hitLn   = segmentRaycast( mLn, gCaster ); //gCaster.intersectObject( mLn );
 
-    //console.log( hitPnt );
-    console.log( hitLn );
+    console.log( hitPnt );
+    Debug.pnt.reset();
+    if( hitPnt && hitPnt.length > 0 ){
+        let fn  = (a,b)=>(a.distanceToRay == b.distanceToRay)? 0 : (a.distanceToRay < b.distanceToRay)? -1:1;
+        let hit = hitPnt.sort( fn )[ 0 ];
+        if( hit.distanceToRay > 0.1 ) return;
+
+        let buf = mPnt.geometry.attributes.position.array;
+        let idx = hit.index;
+        let pos = Vec3Buf.get( buf, idx * 3 );
+
+        console.log( hit.dis)
+
+        console.log( hit );
+        console.log( Vec3Buf.get( buf, hit.index * 3 ), hit.index );
+
+        Debug.pnt.add( pos, 0x00ffff, 10 );
+    }  
+
+    //Debug.pnt.add( [0,0,0], 0x00ffff, 2 );
+    //console.log( hitLn );
 }
 
 // https://github.com/mrdoob/three.js/blob/master/src/objects/Line.js#L83
 // Original Code doesn't give the right distance to determine which edge
-// was the closest to the ray. 
+// was the closest to the ray.
 function segmentRaycast( seg, raycaster, intersects=[] ) {
     const _sphere           = new THREE.Sphere();
     const _inverseMatrix    = new THREE.Matrix4();
@@ -204,6 +281,112 @@ if ( geometry.isBufferGeometry ) {
     return intersects;
 }
 
+
+//https://github.com/mrdoob/three.js/blob/master/src/objects/Points.js
+function pointRaycast( pnt, raycaster, intersects ) {
+    const _sphere           = new THREE.Sphere();
+    const _inverseMatrix    = new THREE.Matrix4();
+    const _ray              = new THREE.Ray();
+    const _position         = new THREE.Vector3();
+
+    const geometry = pnt.geometry;
+    const matrixWorld = pnt.matrixWorld;
+    const threshold = raycaster.params.Points.threshold;
+    const drawRange = geometry.drawRange;
+
+    console.log( 'threshold', threshold );
+
+    // Checking boundingSphere distance to ray
+    console.log( geometry.boundingSphere );
+    if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere();
+
+    _sphere.copy( geometry.boundingSphere );
+    _sphere.applyMatrix4( matrixWorld );
+    _sphere.radius += threshold;
+    
+    if ( raycaster.ray.intersectsSphere( _sphere ) === false ) return;
+
+    // 
+
+    _inverseMatrix.copy( matrixWorld ).invert();
+    _ray.copy( raycaster.ray ).applyMatrix4( _inverseMatrix );
+
+    const localThreshold = threshold / ( ( pnt.scale.x + pnt.scale.y + pnt.scale.z ) / 3 );
+    const localThresholdSq = localThreshold * localThreshold;
+
+    if ( geometry.isBufferGeometry ) {
+
+        const index = geometry.index;
+        const attributes = geometry.attributes;
+        const positionAttribute = attributes.position;
+
+        if ( index !== null ) {
+
+            const start = Math.max( 0, drawRange.start );
+            const end = Math.min( index.count, ( drawRange.start + drawRange.count ) );
+
+            for ( let i = start, il = end; i < il; i ++ ) {
+
+                const a = index.getX( i );
+
+                _position.fromBufferAttribute( positionAttribute, a );
+                testPoint( _position, a, localThresholdSq, matrixWorld, raycaster, intersects, this, _ray );
+
+            }
+
+        } else {
+
+            const start = Math.max( 0, drawRange.start );
+            const end = Math.min( positionAttribute.count, ( drawRange.start + drawRange.count ) );
+
+            for ( let i = start, l = end; i < l; i ++ ) {
+
+                _position.fromBufferAttribute( positionAttribute, i );
+                testPoint( _position, i, localThresholdSq, matrixWorld, raycaster, intersects, this, _ray );
+
+            }
+
+        }
+
+    } else {
+
+        console.error( 'THREE.Points.raycast() no longer supports THREE.Geometry. Use THREE.BufferGeometry instead.' );
+
+    }
+
+}
+
+function testPoint( point, index, localThresholdSq, matrixWorld, raycaster, intersects, object, _ray ) {
+
+    const rayPointDistanceSq = _ray.distanceSqToPoint( point );
+
+    if ( rayPointDistanceSq < localThresholdSq ) {
+
+        const intersectPoint = new THREE.Vector3();
+
+        _ray.closestPointToPoint( point, intersectPoint );
+        intersectPoint.applyMatrix4( matrixWorld );
+
+        const distance = raycaster.ray.origin.distanceTo( intersectPoint );
+
+        if ( distance < raycaster.near || distance > raycaster.far ) return;
+
+        intersects.push( {
+
+            distance: distance,
+            distanceToRay: Math.sqrt( rayPointDistanceSq ),
+            point: intersectPoint,
+            index: index,
+            face: null,
+            object: object
+
+        } );
+
+    }
+
+}
+
+
 /*
 //https://github.com/mrdoob/three.js/blob/master/examples/webgl_interactive_points.html
 
@@ -240,8 +423,43 @@ const points = new THREE.Points( geometry, material );
 
 */
 
+//https://threejs.org/examples/webgl_interactive_points.html
+//https://threejs.org/examples/?q=inter#webgl_interactive_lines
+//https://threejs.org/manual/?q=offscreen#en/offscreencanvas
+
+/*
+attributes.size.array[ INTERSECTED ] = PARTICLE_SIZE;
+
+INTERSECTED = intersects[ 0 ].index;
+
+attributes.size.array[ INTERSECTED ] = PARTICLE_SIZE * 1.25;
+attributes.size.needsUpdate = true;
+*/
 
 //#endregion
+
+class Vec3Buf{
+    static get( a, ai, o ){
+        if( !o ) return [ a[ai+0], a[ai+1], a[ai+2] ];
+        o[ 0 ] = a[ai + 0];
+        o[ 1 ] = a[ai + 1];
+        o[ 2 ] = a[ai + 2];
+        return o;
+    }
+
+    static set( x, y, z, o, oi ){
+        o[ oi + 0 ] = x;
+        o[ oi + 1 ] = y;
+        o[ oi + 2 ] = z;
+    }
+
+    static add( a, ai, b, bi, o, oi ){
+        if( !o ){ o = a; oi = ai; }
+        o[ oi + 0 ] = a[ ai + 0 ] + b[ bi + 0 ];
+        o[ oi + 1 ] = a[ ai + 1 ] + b[ bi + 1 ];
+        o[ oi + 2 ] = a[ ai + 2 ] + b[ bi + 2 ];
+    }
+}
 
 </script>
 </body></html>

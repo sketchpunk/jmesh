@@ -5,7 +5,7 @@ import type BLoop       from '../BLoop';
 import type BFace       from '../BFace';
 
 
-function bm_loop_create( bm: BMesh, v : BVert, e : BEdge, f: BFace,): BLoop {
+function bm_loop_create( bm: BMesh, v : BVert, e : BEdge, f: BFace ): BLoop {
 
     let l : BLoop = bm._newLoop();
 
@@ -26,6 +26,14 @@ function bm_loop_create( bm: BMesh, v : BVert, e : BEdge, f: BFace,): BLoop {
     return l;
 }
 
+
+function bm_kill_only_loop( bm: BMesh, l: BLoop ){
+    bm.totloop--;
+    l.reset();
+    bm.recycled_l.push( l.idx );
+}
+
 export {
     bm_loop_create,
+    bm_kill_only_loop,
 };

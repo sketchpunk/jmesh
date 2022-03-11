@@ -93,6 +93,7 @@ typedef struct BMLoop {
 */
 
 class BLoop{
+    recycled             = false;
     idx         : number = -1;
     v           : number = -1;
     e           : number = -1;
@@ -101,6 +102,17 @@ class BLoop{
     radial_next : number = -1;
     prev        : number = -1;
     next        : number = -1;
+
+    reset(){
+        this.recycled    = false;
+        this.v           = -1;
+        this.e           = -1;
+        this.f           = -1;
+        this.radial_prev = -1;
+        this.radial_next = -1;
+        this.prev        = -1;
+        this.next        = -1;
+    }
 }
 
 export default BLoop;

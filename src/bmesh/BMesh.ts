@@ -111,16 +111,21 @@ class BMesh {
     // Flag index arrays as being dirty so we can check if they are clean and
     // avoid looping over the entire vert/edge/face/loop array in those cases.
     // valid flags are: `(BM_VERT | BM_EDGE | BM_FACE | BM_LOOP)`      
-    elem_index_dirty = 0;
+    //elem_index_dirty = 0;
 
     // Flag array table as being dirty so we know when its safe to use it,
     // or when it needs to be re-created.        
-    elem_table_dirty = 0;
+    //elem_table_dirty = 0;
 
     vertices    : BVert[] = [];
     edges       : BEdge[] = [];
     loops       : BLoop[] = [];
     faces       : BFace[] = [];
+
+    recycled_v  : number[] = [];    // Indices of recycled objects in their respected pools
+    recycled_e  : number[] = [];
+    recycled_l  : number[] = [];
+    recycled_f  : number[] = [];
 
     // index tables, to map indices to elements via
     // BM_mesh_elem_table_ensure and associated functions.  don't
@@ -134,7 +139,17 @@ class BMesh {
 
     //#region POOLS
     _newVert(): BVert{
-        // TODO : Handle Pool
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if( this.recycled_v.length != 0 ){
+            const i = this.recycled_v.pop();
+            if( i != undefined ){
+                const o     = this.vertices[ i ];
+                o.recycled  = false;
+                return o;
+            }
+        }
+        
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const o = new BVert();
         o.idx   = this.vertices.length;
         this.vertices.push( o );
@@ -142,7 +157,17 @@ class BMesh {
     }
 
     _newEdge(): BEdge{
-        // TODO : Handle Pool
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if( this.recycled_e.length != 0 ){
+            const i = this.recycled_e.pop();
+            if( i != undefined ){
+                const o     = this.edges[ i ];
+                o.recycled  = false;
+                return o;
+            }
+        }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const o = new BEdge();
         o.idx   = this.edges.length;
         this.edges.push( o );
@@ -150,7 +175,17 @@ class BMesh {
     }
 
     _newLoop(): BLoop{
-        // TODO : Handle Pool
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if( this.recycled_l.length != 0 ){
+            const i = this.recycled_l.pop();
+            if( i != undefined ){
+                const o     = this.loops[ i ];
+                o.recycled  = false;
+                return o;
+            }
+        }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const o = new BLoop();
         o.idx   = this.loops.length;
         this.loops.push( o );
@@ -158,7 +193,17 @@ class BMesh {
     }
 
     _newFace(): BFace{
-        // TODO : Handle Pool
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if( this.recycled_f.length != 0 ){
+            const i = this.recycled_f.pop();
+            if( i != undefined ){
+                const o     = this.faces[ i ];
+                o.recycled  = false;
+                return o;
+            }
+        }
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const o = new BFace();
         o.idx   = this.faces.length;
         this.faces.push( o );

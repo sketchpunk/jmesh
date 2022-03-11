@@ -1,15 +1,21 @@
+//#region IMPORTS
 import type BMesh       from '../BMesh';
 import type BFace       from '../BFace';
 import type BVert       from '../BVert';
 import type { BEdge }   from '../BEdge';
 import type BLoop       from '../BLoop';
 
-import { bm_loop_create }               from './BM_loop';
-import { bmesh_radial_loop_append }     from './bmesh_radial_loop';
-import { bmesh_disk_edge_next }         from './bmesh_disk_edge';
-import { BM_edges_from_verts, 
-         BM_edges_from_verts_ensure }   from './BM_edge';
+import { bm_loop_create,
+         bm_kill_only_loop, }           from './BM_loop';
 
+import { bmesh_radial_loop_append,
+         bmesh_radial_loop_remove, }    from './bmesh_radial_loop';
+
+import { bmesh_disk_edge_next }         from './bmesh_disk_edge';
+
+import { BM_edges_from_verts, 
+         BM_edges_from_verts_ensure, }  from './BM_edge';
+//#endregion
 
 // Wrapper for #BM_face_create when you don't have an edge array
 function BM_face_create_verts( bm: BMesh, vert_arr: BVert[], len: number, create_edges=true ): BFace | null{
@@ -117,54 +123,41 @@ function BM_face_exists( bm: BMesh, varr: BVert[], len: number ): BFace | null{
     return null;
 }
 
+function BM_face_kill( bm: BMesh, f: BFace ): void{
+    if( f.l_first != -1 ){
+        let l_iter  : BLoop = bm.loops[ f.l_first ];
+        let l_next  : BLoop = l_iter;
+        let l_first : BLoop = l_iter;
 
-/**
- * Kills \a f and its loops.
- 
- void BM_face_kill(BMesh *bm, BMFace *f)
- {
- #ifdef USE_BMESH_HOLES
-   BMLoopList *ls, *ls_next;
- #endif
- 
- #ifdef NDEBUG
-   //check length since we may be removing degenerate faces 
-   if (f->len >= 3) {
-     BM_CHECK_ELEMENT(f);
-   }
- #endif
- 
- #ifdef USE_BMESH_HOLES
-   for (ls = f->loops.first; ls; ls = ls_next)
- #else
-   if (f->l_first)
- #endif
-   {
-     BMLoop *l_iter, *l_next, *l_first;
- 
- #ifdef USE_BMESH_HOLES
-     ls_next = ls->next;
-     l_iter = l_first = ls->first;
- #else
-     l_iter = l_first = f->l_first;
- #endif
- 
-     do {
-       l_next = l_iter->next;
- 
-       bmesh_radial_loop_remove(l_iter->e, l_iter);
-       bm_kill_only_loop(bm, l_iter);
- 
-     } while ((l_iter = l_next) != l_first);
- 
- #ifdef USE_BMESH_HOLES
-     BLI_mempool_free(bm->looplistpool, ls);
- #endif
-   }
- 
-   bm_kill_only_face(bm, f);
- }
- */
+        do {
+            l_next = bm.loops[ l_iter.next ];
+
+            bmesh_radial_loop_remove( bm, bm.edges[ l_iter.e ], l_iter );
+            bm_kill_only_loop( bm, l_iter );
+
+        } while( (l_iter = l_next) != l_first );
+    }
+
+    bm_kill_only_face( bm, f );
+}
+
+function bm_kill_only_face( bm: BMesh, f: BFace ): void{
+    bm.totface--;
+    f.reset();
+    bm.recycled_f.push( f.idx );
+}
+
+export {
+    BM_face_create_verts,
+    BM_face_create,
+    bm_face_boundary_add,
+    BM_face_exists,
+    BM_face_kill,
+    bm_kill_only_face,
+};
+
+
+
  /**
   * A version of #BM_face_kill which removes edges and verts
   * which have no remaining connected geometry.
@@ -224,12 +217,6 @@ function BM_face_exists( bm: BMesh, varr: BVert[], len: number ): BFace | null{
    bm_kill_only_face(bm, f);
  }  */
 
-export {
-    BM_face_create_verts,
-    BM_face_create,
-    bm_face_boundary_add,
-    BM_face_exists,
-};
 
 /*
 

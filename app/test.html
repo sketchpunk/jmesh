@@ -1,0 +1,87 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title></title></head><body>
+<script type="module">
+
+//#region IMPORTS
+import Starter, { THREE }   from './threejs/_lib/Starter.js';
+import DynPointMesh         from './threejs/_lib/DynPointMesh.js';
+import ShapePointsMesh      from './threejs/_lib/ShapePointsMesh.js';
+import DynLineMesh          from './threejs/_lib/DynLineMesh.js';
+import GizmoCaster          from './threejs/_lib/GizmoCaster.js';
+//#endregion
+
+// https://codepen.io/tr13ze/pen/pbjWwg COOL SCENE setup, Try it out.
+// https://discourse.threejs.org/t/radial-gradient-shader-for-the-scene-background/25079/3
+
+
+let App, Caster, Debug = {};
+let Pnt;
+
+window.addEventListener( "load", async _=>{
+    App = new Starter( { webgl2:true, grid:true } );
+    App.setCamera( 0, 20, 1, [0,0.0,0] ).render();
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Caster = new GizmoCaster( App.renderer.domElement, App.camera, App.orbit ).initEvents();
+    Caster.onRayCast    = onRayCast;
+    Caster.onGizmoMove  = onGizmoMove;
+    App.add( Caster.gizmo );
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Debug.pnt = new DynPointMesh();
+    Debug.ln  = new DynLineMesh();
+    App.add( Debug.pnt );
+    App.add( Debug.ln );
+
+    Debug.ln.add( [0,0,0], [0,1,0], 0x00ffff, 0xffff00, true );
+
+    for( let i = 0; i < 30; i++ ){
+        Debug.pnt.add( [i*0.4,0.1,0 ], 0xffffff * Math.random() );
+    }
+
+    Pnt = new ShapePointsMesh();
+    Pnt.rotation.set( -45, 45, 0 );
+    Pnt.add( [0,0,0 ], 0x00ffff, 3, 7 );
+    App.add( Pnt );
+
+    /*
+    const sh = new ShapePointsMesh();
+    sh.add( [0,0,0 ], 0x00ffff, 5, 7 );
+    sh.add( [1,0,0 ], 0x00ffff, 5, 1 );
+    sh.add( [2,0,0 ], 0x00ffff, 5, 2 );
+    sh.add( [3,0,0 ], 0x00ffff, 5, 3 );
+    sh.add( [4,0,0 ], 0x00ffff, 5, 4 );
+    sh.add( [5,0,0 ], 0x00ffff, 5, 5 );
+    sh.add( [6,0,0 ], 0x00ffff, 5, 6 );
+
+    App.add( sh );
+    */
+});
+
+
+function reduceMinPointHit( min, hit ){ return ( hit.distanceToRay < min.distanceToRay )? hit : min; }
+function onRayCast( gizCaster ){
+    const minDistance = 0.08;
+    const hits = gizCaster.ray.intersectObject( Debug.pnt );
+
+    if( hits?.length ){
+        const minHit = hits.reduce( reduceMinPointHit );
+        if( minHit.distanceToRay > minDistance ) return;
+
+        const pos = Debug.pnt.getPosAt( minHit.index );
+        Pnt.position.fromArray( pos );
+        gizCaster.attachGizmo( Pnt, minHit.index );
+        
+        //Debug.pnt.setColorAt( minHit.index, 0x00ffff );
+        //console.log( minHit.index, minHit );
+    }
+}
+
+function onGizmoMove( pos, userData ){
+    const i = userData;
+    Debug.pnt.setPosAt( i, pos );
+}
+
+</script>
+</body></html>
